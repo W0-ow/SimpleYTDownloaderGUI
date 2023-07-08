@@ -39,8 +39,13 @@ def main():
     list_url = []
     work_id = 0
     # gestionamos los eventos de la ventana
-    while True:
+    while True: 
         event, values = window.Read(timeout=100)
+
+        # en caso de salir o cerrar la ventana rompemos el bucle
+        if event == 'Exit' or event == sg.WIN_CLOSED:
+            break
+
         # anadimos elementos a nuestra lista en el evento del boton
         if event == BTN_ADD:
             # solo anadimos elementos en caso de que se trate de una url y no este repetido
@@ -65,15 +70,19 @@ def main():
             list_url.clear()
             window[URL_LIST].update([])
 
-        # en caso de salir o cerrar la ventana rompemos el bucle
-        if event == 'Exit' or event == sg.WIN_CLOSED:
-            break
-
+        # obtenemos la localizacion actual de la ventana
+        windowLocation = window.CurrentLocation()
+        popupLocation = (None, None)
+        # realizamos el calculo para centrar los popups
+        if windowLocation != (None, None):
+            popupLocation = (windowLocation[0] + 220, windowLocation[1] + 160)
+        
         # --------------- LECTURA DE MENSAJE DE LOS THREATS -------------------
         try:
             message = gui_queue.get_nowait()  # mira si hay mensajes en la pila
         except Empty:  # get_nowait() will se ejecuta cuando la pila esta vacia
             message = None  # nada en la pila, asi que no se hace nada
+
         # si se recibe algun mensaje de la pila entonces algun threat ha finalizado su trabajo
         if message is not None:
             # esta es la zona en la que executamos codigo al haber finalizado la ejecucion que esperabamos,
@@ -84,22 +93,24 @@ def main():
             if not work_id:
                 # finalia el popup de carga y lanza el mensaje de finalizado
                 sg.PopupAnimated(None)
-                sg.popup_ok('Descarga finalizada')
+                sg.popup_ok('Descarga finalizada', location=popupLocation)
                 # habilitamos la ventamna principal
                 wn.enable_disable_all(window, 'normal')
                 window.enable()
+                window.TKroot.focus_force()
                 # limpiamos el list box del gui
                 window[URL_LIST].update([])
 
         # si la descarga de videos se esta ejecutando, mostramos el modal de carga indeterminada y deshabilitamos la ventana principal
         if work_id:
             sg.PopupAnimated(
-                LINE_BOXES, message='Cargando...', background_color=None, time_between_frames=100, no_titlebar=False, grab_anywhere=False, keep_on_top=False)
+                LINE_BOXES, message='Cargando...', background_color=None, time_between_frames=100, no_titlebar=False, grab_anywhere=False, keep_on_top=False, location=popupLocation)
             wn.enable_disable_all(window, 'disable')
             window.disable()
 
     # finalizamos el programa
     window.close()
+
 
 
 if __name__ == '__main__':
