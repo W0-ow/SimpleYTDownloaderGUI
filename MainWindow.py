@@ -1,6 +1,5 @@
 import PySimpleGUI as sg
 from PySimpleGUI import Window
-from LoadingGifs import LINE_BOXES
 
 # global variables
 URL = '-URL-'
@@ -17,11 +16,14 @@ def enable_disable_all(window: Window, state: str):
     window[BTN_CLEAN].Widget.configure(state=state)
 
 def main_window() -> Window:
-     # layout de nuestra ventana
+    # opciones de menu copy/paste
+    copy_paste_menu = ['', ['Copiar', 'Pegar', 'Limpiar']]
+    
+    # layout de nuestra ventana
     main_column = [
         [
             sg.Text('Url Video:'),
-            sg.In(size=(63, 1), key=URL),
+            sg.In(size=(63, 1), key=URL, right_click_menu=copy_paste_menu),
             sg.Button('Añadir', key=BTN_ADD)
         ],
         [

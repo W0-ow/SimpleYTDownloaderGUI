@@ -5,8 +5,8 @@ from time import sleep
 from threading import Thread
 from queue import Queue, Empty
 from LoadingGifs import LINE_BOXES
-import AppWindows as wn
-from AppWindows import URL, URL_LIST, BTN_ADD, BTN_CLEAN, BTN_DOWNLOAD
+import MainWindow as wn
+from MainWindow import URL, URL_LIST, BTN_ADD, BTN_CLEAN, BTN_DOWNLOAD
 
 # regex para los videos las url de YouTube
 regx_yt = compile(
@@ -45,6 +45,20 @@ def main():
         # en caso de salir o cerrar la ventana rompemos el bucle
         if event == 'Exit' or event == sg.WIN_CLOSED:
             break
+        
+        # copy/paste/clean
+        if event in ('Copiar', 'Pegar', 'Limpiar'):
+            widget = window.find_element_with_focus().widget
+        if event == 'Limpiar':
+            window[URL].update('')
+        if event == 'Copiar' and widget.select_present():
+            text = widget.selection_get()
+            window.TKroot.clipboard_clear()
+            window.TKroot.clipboard_append(text)
+        elif event == 'Pegar':
+            if widget.select_present():
+                widget.delete(sg.tk.SEL_FIRST, sg.tk.SEL_LAST)
+            widget.insert(sg.tk.INSERT, window.TKroot.clipboard_get())
 
         # anadimos elementos a nuestra lista en el evento del boton
         if event == BTN_ADD:
