@@ -18,7 +18,8 @@ def enable_disable_all(window: Window, state: str):
 def main_window() -> Window:
     # opciones de menu copy/paste
     copy_paste_menu = ['', ['Copiar', 'Pegar', 'Limpiar']]
-    
+    command  = ['', ['Borrar', ]]
+
     # layout de nuestra ventana
     main_column = [
         [
@@ -28,7 +29,7 @@ def main_window() -> Window:
         ],
         [
             sg.Listbox(
-                values=[], enable_events=True, size=(80, 15), key=URL_LIST
+                values=[], enable_events=True, size=(80, 15), key=URL_LIST, right_click_menu=command
             )
         ],
         [

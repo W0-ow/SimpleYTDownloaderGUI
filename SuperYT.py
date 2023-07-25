@@ -38,6 +38,7 @@ def main():
 
     list_url = []
     work_id = 0
+
     # gestionamos los eventos de la ventana
     while True: 
         event, values = window.Read(timeout=100)
@@ -45,12 +46,10 @@ def main():
         # en caso de salir o cerrar la ventana rompemos el bucle
         if event == 'Exit' or event == sg.WIN_CLOSED:
             break
-        
+
         # copy/paste/clean
-        if event in ('Copiar', 'Pegar', 'Limpiar'):
+        if event in ('Copiar', 'Pegar'):
             widget = window.find_element_with_focus().widget
-        if event == 'Limpiar':
-            window[URL].update('')
         if event == 'Copiar' and widget.select_present():
             text = widget.selection_get()
             window.TKroot.clipboard_clear()
@@ -59,7 +58,12 @@ def main():
             if widget.select_present():
                 widget.delete(sg.tk.SEL_FIRST, sg.tk.SEL_LAST)
             widget.insert(sg.tk.INSERT, window.TKroot.clipboard_get())
-
+            widget = None
+        # limpiar input, limpiar lista
+        if event == 'Limpiar':
+            window[URL].update('')
+        if event == 'Borrar':
+            window[URL_LIST].update([])
         # anadimos elementos a nuestra lista en el evento del boton
         if event == BTN_ADD:
             # solo anadimos elementos en caso de que se trate de una url y no este repetido
