@@ -1,74 +1,92 @@
 # Super YT Downloader
 
-Aplicación de escritorio en español para descargar vídeos de YouTube o guardar solo el audio.
-Interfaz PySide6 y herramientas externas actualizables, orientada a **Windows 10/11 x64**.
+Aplicación en español para descargar vídeos de YouTube o guardar solo audio.
+**Distribución para Windows 10/11 x64.** La aplicación prepara y actualiza sus componentes
+sin elegir motores, instalar Python ni configurar rutas.
 
 ## Uso en Windows
 
-Descomprime **toda** la carpeta portable y abre `SuperYTDownloader.exe`. No necesita una instalación
-separada de Python. Conserva `_internal/` y `bin/` junto al ejecutable.
+Descomprime toda la carpeta portable y abre `SuperYTDownloader.exe`.
+Conserva `_internal/` junto al ejecutable.
 
-1. Añade un enlace o pega varios, uno por línea.
-2. Elige **Vídeo + audio**, **Audio original** o **Audio MP3**.
-3. Selecciona resolución máxima, perfil o bitrate, y carpeta de destino.
-4. Pulsa **Descargar pendientes**. Puedes cancelar y reintentar fallidos/cancelados.
+1. La primera vez muestra **Preparando aplicación…** y descarga los componentes necesarios.
+   Necesita Internet; puede tardar unos minutos.
+2. Añade un enlace o pega varios, uno por línea.
+3. Elige vídeo, audio original o MP3, calidad y carpeta de destino.
+4. Pulsa **Descargar pendientes**.
 
-Selecciona una fila y pulsa **Ver formatos** para consultar resoluciones y códecs disponibles.
-Doble clic en una descarga completada abre su archivo; en una fallida muestra su error.
-Las descargas se ejecutan de una en una. Los enlaces añadidos durante una tanda quedan para la siguiente.
-Las opciones se aplican a todos los pendientes al iniciar cada tanda; reintentar usa los ajustes actuales.
+Las descargas se ejecutan de una en una. Puedes cancelarlas, reintentar fallidos/cancelados
+y quitar filas seleccionadas. Los enlaces añadidos durante una tanda quedan para la siguiente.
+Las opciones se aplican al iniciar cada tanda; reintentar utiliza los ajustes actuales.
+Doble clic abre un archivo completado o muestra el detalle de un error.
 
-- **Hasta 1080p**, por ejemplo, permite 720p si no hay 1080p; nunca aumenta la resolución.
-- **MP4 compatible · H.264** selecciona vídeo H.264 y audio M4A. Si no está disponible, muestra
-  un error: selecciona **Máxima calidad** para admitir otros códecs. H.264 puede limitar 1440p/4K.
-- **Máxima calidad** usa los mejores formatos dentro del límite y MKV cuando hay que unir pistas.
-  Un formato que ya trae audio y vídeo puede conservar su contenedor original.
-- **Audio original** conserva la pista disponible (por ejemplo, M4A/WebM) sin recodificar.
-- **Audio MP3** convierte con FFmpeg a 128, 192, 256 o 320 kbps. Un bitrate mayor no mejora la fuente.
-- Durante vídeo + audio, el porcentaje corresponde a la pista actual y puede reiniciarse al pasar
-  de vídeo a audio. La unión/conversión tiene un indicador indeterminado.
-- Las playlists completas no se importan: un enlace con vídeo y playlist descarga solo ese vídeo.
-- Se conservan archivos parciales al cancelar y se intenta continuar al reintentar con las mismas
-  opciones. No se sobrescriben archivos terminados. La cola no se conserva al cerrar esta versión.
+## Actualizaciones automáticas
 
-## Herramientas
+- Al abrir, comprueba las últimas publicaciones estables de yt-dlp, FFmpeg/FFprobe y Deno.
+  Una comprobación correcta se guarda durante 24 horas; no descarga todo en cada apertura.
+- **Buscar actualizaciones** permite comprobar e instalar las novedades cuando quieras.
+  Si hay una descarga o consulta en curso, espera a que termine.
+- Solo descarga los componentes nuevos o dañados. Comprueba SHA256 y que los ejecutables
+  funcionen antes de activar una instalación completa.
+- Si hay un fallo de red, verificación o ejecución, conserva la instalación anterior.
+  Puedes seguir usándola y reintentar la actualización después.
+- La interfaz sigue respondiendo durante la preparación. Puedes añadir enlaces y cancelar;
+  las descargas esperan a que termine la actualización.
+- La actualización afecta a los componentes de descarga, no al código de la aplicación.
 
-En `bin/`, junto al ejecutable de la GUI:
+Los componentes se guardan en `%LOCALAPPDATA%\SuperYTDownloader\tools`, con una copia
+anterior de respaldo. No necesita modificar la carpeta del programa ni permisos de administrador.
+Las versiones empaquetadas en `bin/`, si las hubiera, sirven como alternativa cuando no se
+puede preparar una instalación nueva. Las antiguas rutas personalizadas dejan de utilizarse.
+Solo se abre una instancia de la aplicación por usuario para evitar operaciones simultáneas.
 
-```text
-SuperYTDownloader/
-├── SuperYTDownloader.exe
-├── _internal/
-├── bin/
-│   ├── yt-dlp.exe
-│   ├── ffmpeg.exe
-│   ├── ffprobe.exe
-│   ├── deno.exe
-│   ├── licenses/
-│   └── tools-manifest.json
-└── LEEME.md
-```
+## Formatos
 
-Se busca primero la ruta elegida en **Ajustes**, después `bin/`, y por último `PATH`.
-Una ruta explícita incorrecta da un error, sin seleccionar silenciosamente otra instalación.
-FFprobe debe acompañar a FFmpeg en su misma carpeta. yt-dlp y Deno se necesitan para todos los modos;
-FFmpeg y FFprobe son obligatorios para vídeo y MP3. Ajustes permite comprobar las versiones sin bloquear la GUI.
-La aplicación ignora archivos de configuración externos de yt-dlp para respetar las opciones de la interfaz.
+- **Vídeo + audio:** resolución máxima (360p a 2160p) o mejor disponible. «Hasta 1080p»
+  permite 720p cuando no hay 1080p; nunca aumenta artificialmente la resolución.
+- **MP4 compatible · H.264:** vídeo H.264 y audio M4A. Si no está disponible, selecciona
+  **Máxima calidad**, que admite otros códecs y usa MKV al unir pistas.
+- **Audio original:** conserva la pista disponible (por ejemplo, M4A/WebM), sin convertirla.
+- **Audio MP3:** conversión a 128, 192, 256 o 320 kbps. No mejora la calidad de la fuente.
+- **Ver formatos:** consulta resoluciones y códecs disponibles del enlace seleccionado.
 
-Para descargar las herramientas Windows x64 automáticamente, con Python instalado:
+El porcentaje corresponde a la pista actual y puede reiniciarse al pasar de vídeo a audio.
+La unión/conversión muestra un indicador indeterminado. Un enlace con vídeo y playlist descarga
+solo ese vídeo. Se conservan archivos parciales para reintentar con las mismas opciones;
+no se sobrescriben archivos terminados. La cola no se conserva al cerrar esta versión.
+
+## Construir el programa en Windows (desarrollo)
+
+Este paso es para crear el portable desde el código fuente. Necesita **Python 3.12 x64**
+con el lanzador `py`. Los usuarios del portable terminado no necesitan Python.
 
 ```powershell
-python scripts/setup_tools.py
+.\scripts\build_windows.ps1
 ```
 
-Descarga desde los proyectos yt-dlp y Deno en GitHub y desde Gyan para FFmpeg. Verifica SHA256
-antes de copiar; guarda URLs, hashes y licencias en `bin/`. Repite el comando con la aplicación
-cerrada para actualizar. No se descargan actualizaciones al abrir la GUI.
-Consulta [bin/README.md](bin/README.md) para preparación manual.
+Si PowerShell bloquea los scripts:
 
-## Desarrollo
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+```
 
-Python 3.11 o posterior; para construir Windows se usa Python 3.12 x64.
+El script crea el entorno, instala dependencias, ejecuta comprobaciones y empaqueta la GUI.
+Los componentes se descargarán automáticamente cuando el usuario abra el programa.
+Resultados:
+
+- `dist/SuperYTDownloader/SuperYTDownloader.exe`
+- `dist/SuperYTDownloader-windows-x64.zip`
+
+Opcionalmente, `-DownloadTools` incorpora una copia de las herramientas al portable,
+para poder utilizar esa copia aunque falle la comprobación inicial. El actualizador sigue funcionando.
+
+GitHub Actions ejecuta pruebas en Windows en push/PR. El flujo manual
+**Windows checks and portable build**, con `bundle_tools`, genera un ZIP con componentes
+como artefacto descargable. No publica releases.
+
+## Ejecutar desde el código
+
+En Windows:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -76,61 +94,44 @@ py -3.12 -m venv .venv
 .venv\Scripts\python -m superyt
 ```
 
-También se conserva `python SuperYT.py` como lanzador después de instalar el proyecto.
-En macOS/Linux usa `python3 -m venv .venv`, `.venv/bin/python` y las herramientas **nativas** en
-`bin/` (sin `.exe`), PATH o Ajustes. El script de herramientas descarga binarios Windows, incluso
-cuando se ejecuta desde otro sistema, y no sirven para ejecutar descargas en macOS/Linux.
+El primer arranque prepara las herramientas automáticamente. También se puede ejecutar
+`.venv\Scripts\python scripts/setup_tools.py` para prepararlas/actualizarlas sin abrir la GUI.
+Para exportar herramientas destinadas a un portable: `scripts/setup_tools.py --destination bin`.
 
-## Construir el portable en Windows
+### Pruebas locales en este Mac
 
-Desde PowerShell, con Python 3.12 x64 instalado:
+La distribución `.app` y las actualizaciones automáticas para macOS quedan para otra versión.
+Para trabajar con el código y probar descargas se admite el entorno nativo local:
 
-```powershell
-.\scripts\build_windows.ps1 -DownloadTools
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev]'
+# FFmpeg/FFprobe deben estar disponibles; si faltan: brew install ffmpeg
+.venv/bin/python scripts/setup_dev_macos.py
+.venv/bin/python -m superyt
 ```
 
-El script prepara el entorno, instala dependencias, descarga herramientas, ejecuta comprobaciones,
-genera el icono y empaqueta con PyInstaller. Resultado:
-`dist/SuperYTDownloader-windows-x64.zip`.
-Si ya has preparado `bin/`, omite `-DownloadTools`.
-La construcción registra las dependencias instaladas en `build-dependencies.txt`.
+El script descarga y verifica yt-dlp y Deno nativos en `bin/`, detectando Intel o Apple Silicon,
+y comprueba el FFmpeg local. Puedes repetirlo para actualizar esas dos herramientas de pruebas.
+No modifica los binarios Windows de la misma carpeta ni instala una aplicación Mac.
+El botón de actualización de Windows se oculta en este modo de desarrollo.
 
-También hay un flujo **Windows checks and portable build** de GitHub Actions: push/PR ejecutan
-comprobaciones, y **Run workflow** con `bundle_tools` genera el ZIP descargable como artefacto.
-No publica releases. El ejecutable Windows se construye en Windows, no directamente en macOS.
+## Pruebas y estructura
 
-## Pruebas
-
-```powershell
-.venv\Scripts\python -m ruff check .
-.venv\Scripts\python -m pytest -q
+```sh
+python -m ruff check .
+python -m pytest -q
 ```
 
-Las pruebas no descargan contenido: comprueban selección de formatos, URLs, rutas, preferencias,
-procesos reales simulados, errores, cancelación y cola de la GUI con Qt offscreen.
-Antes de distribuir, prueba en Windows con las herramientas reales: vídeo 720p/1080p, audio MP3,
-rutas con espacios/acentos, enlace no disponible, cancelación durante descarga y unión con FFmpeg.
+Las pruebas no descargan contenido: comprueban formatos con yt-dlp real, procesos simulados,
+cola Qt, cancelación, instalación inicial, caché de versiones, reparación, fallos y activación atómica.
+La ejecución final de los `.exe` y el portable debe verificarse en Windows.
 
-## Estructura
+`src/superyt/` separa interfaz (`ui/`), descargas (`downloader.py`), formatos (`formats.py`),
+preferencias (`settings.py`), detección (`tools.py`), fuentes de componentes (`releases.py`)
+y actualizaciones (`updater.py`). `scripts/` contiene preparación y empaquetado; `tests/`, las pruebas.
+Los ejecutables y las carpetas de construcción quedan excluidos de Git.
 
-```text
-src/superyt/
-├── app.py           # Arranque y registro
-├── models.py        # Opciones, cola y eventos
-├── formats.py       # URLs, selección y protocolo de progreso
-├── downloader.py    # Procesos, consulta y cancelación
-├── settings.py      # Preferencias y rutas
-├── tools.py         # Detección y versiones
-├── assets/          # Icono SVG
-└── ui/              # Ventanas, estilos y workers Qt
-scripts/             # Herramientas y empaquetado Windows
-tests/               # Pruebas de lógica, procesos e interfaz
-bin/                 # Ejecutables externos, excluidos de Git
-```
-
-Preferencias y registros: `%LOCALAPPDATA%\SuperYTDownloader` en Windows. Registro rotativo:
-`superyt.log` (hasta tres archivos de aproximadamente 1 MB). No se escriben ajustes junto al `.exe`.
-En macOS se usa `~/Library/Application Support/SuperYTDownloader`; en Linux, `$XDG_CONFIG_HOME`
-o `~/.config/SuperYTDownloader`.
-
+Preferencias y registro rotativo: `%LOCALAPPDATA%\SuperYTDownloader` en Windows,
+`~/Library/Application Support/SuperYTDownloader` en este Mac.
 Consulta [THIRD_PARTY.md](THIRD_PARTY.md) para componentes externos.

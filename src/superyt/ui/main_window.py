@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from tempfile import TemporaryFile
 
@@ -30,9 +31,10 @@ from PySide6.QtWidgets import (
 from superyt.formats import normalize_url, progress_detail
 from superyt.models import DownloadItem, DownloadOptions
 from superyt.settings import Settings
-from superyt.tools import executable_name, resolve_tool, resolve_tools
-from superyt.ui.dialogs import PasteDialog, SettingsDialog, show_formats
-from superyt.ui.workers import DownloadWorker, InspectWorker
+from superyt.tools import resolve_tools
+from superyt.ui.dialogs import PasteDialog, show_formats
+from superyt.ui.workers import DownloadWorker, InspectWorker, UpdateWorker
+from superyt.updater import update_due
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,10 @@ class MainWindow(QMainWindow):
         self.items: list[DownloadItem] = []
         self.worker = None
         self.probe = None
+        self.updater = None
+        self.update_pending = False
+        self.start_after_update = False
+        self.update_succeeded = False
         self.closing = False
         self.setWindowTitle("Super YT Downloader")
         self.setWindowIcon(QIcon(str(Path(__file__).parents[1] / "assets/app.svg")))
@@ -76,8 +82,9 @@ class MainWindow(QMainWindow):
         titles.addWidget(title)
         titles.addWidget(subtitle)
         header.addLayout(titles, 1)
-        self.settings_button = self.button("Ajustes", self.open_settings)
-        header.addWidget(self.settings_button)
+        self.update_button = self.button("Buscar actualizaciones", self.request_update)
+        self.update_button.setVisible(sys.platform == "win32")
+        header.addWidget(self.update_button)
         layout.addLayout(header)
 
         card = QFrame()
@@ -217,28 +224,86 @@ class MainWindow(QMainWindow):
             self.append_log(f"No se pudieron guardar las preferencias: {exc}")
 
     def update_mode(self):
-        busy = self.worker is not None or self.probe is not None
+        busy = self.worker is not None or self.probe is not None or self.updater is not None
         self.height.setEnabled(not busy and self.mode.currentData() == "video")
         self.profile.setEnabled(not busy and self.mode.currentData() == "video")
         self.bitrate.setEnabled(not busy and self.mode.currentData() == "mp3")
 
     def update_tools_notice(self):
-        missing = [
-            name
-            for name in ("yt-dlp", "ffmpeg", "deno")
-            if resolve_tool(name, self.settings.tools) is None
-        ]
-        ffmpeg = resolve_tool("ffmpeg", self.settings.tools)
-        if ffmpeg and not ffmpeg.with_name(executable_name("ffprobe")).is_file():
-            missing.append("ffprobe")
+        try:
+            resolve_tools()
+            self.notice.setText("Listo. Añade enlaces para empezar.")
+        except ValueError:
+            self.notice.setText(
+                "Prepararemos los componentes necesarios automáticamente."
+                if sys.platform == "win32"
+                else "Faltan componentes para las pruebas locales."
+            )
+
+    def startup_update(self):
+        if sys.platform == "win32" and update_due():
+            self.request_update()
+
+    def request_update(self):
+        if self.closing or self.updater is not None or sys.platform != "win32":
+            return
+        if self.worker is not None or self.probe is not None:
+            self.update_pending = True
+            self.update_button.setText("Actualización pendiente")
+            self.update_button.setEnabled(False)
+            self.notice.setText("Buscaremos actualizaciones cuando termine la tarea en curso.")
+            return
+        self.update_pending = False
+        self.update_succeeded = False
+        self.update_button.setText("Actualizando…")
+        self.updater = UpdateWorker(self)
+        self.updater.progress.connect(self.notice.setText)
+        self.updater.result.connect(self.update_result)
+        self.updater.error.connect(self.update_error)
+        self.updater.finished.connect(self.update_finished)
+        self.notice.setText("Preparando aplicación…")
+        self.update_controls()
+        self.updater.start()
+
+    def update_result(self, changed):
+        self.update_succeeded = True
         self.notice.setText(
-            "Configura en Ajustes: " + ", ".join(missing)
-            if missing
-            else "Herramientas localizadas. Añade enlaces para empezar."
+            "Actualización completada. Listo para descargar."
+            if changed
+            else "Todo está actualizado. Listo para descargar."
         )
 
+    def update_error(self, message):
+        self.append_log(message)
+        if self.updater is not None and self.updater.cancel_event.is_set():
+            self.notice.setText("Actualización cancelada. Se conserva la versión instalada.")
+            return
+        try:
+            resolve_tools()
+            self.notice.setText("No se pudo actualizar. Puedes continuar con la versión instalada.")
+        except ValueError:
+            self.notice.setText(
+                "No se pudo preparar la aplicación. Comprueba la conexión y pulsa Buscar actualizaciones."
+            )
+
+    def update_finished(self):
+        self.updater.deleteLater()
+        self.updater = None
+        self.update_button.setText("Buscar actualizaciones")
+        resume = self.start_after_update and self.update_succeeded
+        self.start_after_update = False
+        self.update_controls()
+        if self.closing:
+            QTimer.singleShot(0, self.close)
+        elif resume:
+            QTimer.singleShot(0, self.start_downloads)
+
+    def run_pending_update(self):
+        if self.update_pending and not self.closing:
+            QTimer.singleShot(0, self.request_update)
+
     def update_controls(self):
-        busy = self.worker is not None or self.probe is not None
+        busy = self.worker is not None or self.probe is not None or self.updater is not None
         selected = bool(self.table.selectionModel().selectedRows())
         self.download_button.setEnabled(
             not busy and any(i.status == "Pendiente" for i in self.items)
@@ -249,8 +314,11 @@ class MainWindow(QMainWindow):
         )
         self.remove_button.setEnabled(not busy and selected)
         self.inspect_button.setEnabled(not busy and selected)
-        for widget in (self.mode, self.destination, self.browse_button, self.settings_button):
+        for widget in (self.mode, self.destination, self.browse_button):
             widget.setEnabled(not busy)
+        self.update_button.setEnabled(
+            self.updater is None and not self.update_pending and not self.closing
+        )
         self.update_mode()
         self.queue_label.setText(f"COLA DE DESCARGAS · {len(self.items)} elementos")
 
@@ -330,23 +398,22 @@ class MainWindow(QMainWindow):
         elif self.items[row].detail:
             QMessageBox.information(self, "Detalle de la descarga", self.items[row].detail)
 
-    def open_settings(self):
-        dialog = SettingsDialog(self.settings.tools, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.settings.tools = dialog.overrides()
-            self.save_settings()
-            self.update_tools_notice()
-
     def start_downloads(self):
-        if self.worker is not None or self.probe is not None:
+        if self.worker is not None or self.probe is not None or self.updater is not None:
             return
         pending = [item for item in self.items if item.status == "Pendiente"]
         if not pending:
             return
         try:
-            tools = resolve_tools(
-                self.settings.tools, needs_ffmpeg=self.mode.currentData() != "original"
-            )
+            tools = resolve_tools(needs_ffmpeg=self.mode.currentData() != "original")
+        except ValueError as exc:
+            if sys.platform == "win32":
+                self.start_after_update = True
+                self.request_update()
+            else:
+                QMessageBox.warning(self, "Preparación local", str(exc))
+            return
+        try:
             if not self.destination.text().strip():
                 raise ValueError("Selecciona una carpeta de destino.")
             destination = Path(self.destination.text()).expanduser().resolve()
@@ -463,15 +530,22 @@ class MainWindow(QMainWindow):
         self.update_controls()
         if self.closing:
             QTimer.singleShot(0, self.close)
+        else:
+            self.run_pending_update()
 
     def inspect_selected(self):
+        if self.worker is not None or self.probe is not None or self.updater is not None:
+            return
         selected = self.table.selectionModel().selectedRows()
         if not selected:
             return
         try:
-            tools = resolve_tools(self.settings.tools, needs_ffmpeg=False)
+            tools = resolve_tools(needs_ffmpeg=False)
         except ValueError as exc:
-            QMessageBox.warning(self, "Configura las herramientas", str(exc))
+            if sys.platform == "win32":
+                self.request_update()
+            else:
+                QMessageBox.warning(self, "Preparación local", str(exc))
             return
         self.probe = InspectWorker(self.items[selected[0].row()].url, tools, self)
         self.probe.result.connect(self.inspection_result)
@@ -496,16 +570,30 @@ class MainWindow(QMainWindow):
         self.update_controls()
         if self.closing:
             QTimer.singleShot(0, self.close)
+        else:
+            self.run_pending_update()
 
     def cancel(self):
         if self.worker is not None:
             self.worker.cancel()
         if self.probe is not None:
             self.probe.cancel()
+        if self.updater is not None:
+            self.updater.cancel()
         self.cancel_button.setEnabled(False)
-        self.notice.setText("Cancelando… Se conservarán los archivos parciales para reintentar.")
+        self.notice.setText(
+            "Cancelando actualización…"
+            if self.updater is not None
+            else "Cancelando… Se conservarán los archivos parciales para reintentar."
+        )
 
     def closeEvent(self, event):
+        if self.updater is not None:
+            self.closing = True
+            self.cancel()
+            self.update_controls()
+            event.ignore()
+            return
         if self.worker is not None or self.probe is not None:
             if not self.closing:
                 answer = QMessageBox.question(

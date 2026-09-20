@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .settings import app_root
+from .updater import active_directory
 
 
 @dataclass(frozen=True)
@@ -19,38 +20,35 @@ def executable_name(name: str) -> str:
     return name + (".exe" if sys.platform == "win32" else "")
 
 
-def resolve_tool(name: str, overrides: dict[str, str], root: Path | None = None) -> Path | None:
-    explicit = overrides.get(name, "").strip()
-    if explicit:
-        candidate = Path(explicit).expanduser()
-        return candidate.resolve() if candidate.is_file() else None
+def resolve_tool(name: str, root: Path | None = None) -> Path | None:
+    if sys.platform == "win32":
+        managed = active_directory()
+        if managed:
+            return managed / executable_name(name)
     bundled = (root or app_root()) / "bin" / executable_name(name)
     if bundled.is_file():
         return bundled.resolve()
-    found = shutil.which(executable_name(name))
-    return Path(found).resolve() if found else None
+    # Native tools are a development convenience on macOS/Linux only.
+    if sys.platform != "win32":
+        local = Path(sys.executable).parent / name
+        if local.is_file():
+            return local.resolve()
+        found = shutil.which(name)
+        return Path(found).resolve() if found else None
+    return None
 
 
-def resolve_tools(overrides: dict[str, str], needs_ffmpeg: bool = True) -> Tools:
-    yt_dlp = resolve_tool("yt-dlp", overrides)
-    ffmpeg = resolve_tool("ffmpeg", overrides)
-    deno = resolve_tool("deno", overrides)
-    if yt_dlp is None:
+def resolve_tools(needs_ffmpeg: bool = True) -> Tools:
+    yt_dlp = resolve_tool("yt-dlp")
+    ffmpeg = resolve_tool("ffmpeg")
+    deno = resolve_tool("deno")
+    if yt_dlp is None or deno is None:
+        raise ValueError("Faltan componentes. Pulsa Buscar actualizaciones para prepararlos.")
+    if needs_ffmpeg and (
+        ffmpeg is None or not ffmpeg.with_name(executable_name("ffprobe")).is_file()
+    ):
         raise ValueError(
-            "No se encuentra yt-dlp. Coloca el ejecutable en bin/ o selecciónalo en Ajustes."
-        )
-    if needs_ffmpeg:
-        if ffmpeg is None:
-            raise ValueError(
-                "Este modo necesita FFmpeg. Coloca ffmpeg y ffprobe en bin/ o configura su ruta."
-            )
-        if not ffmpeg.with_name(executable_name("ffprobe")).is_file():
-            raise ValueError(
-                "Falta ffprobe junto a ffmpeg. Copia ambos ejecutables en la misma carpeta."
-            )
-    if deno is None:
-        raise ValueError(
-            "Falta Deno para el soporte de YouTube. Colócalo en bin/ o selecciónalo en Ajustes."
+            "Faltan componentes de vídeo. Pulsa Buscar actualizaciones para prepararlos."
         )
     return Tools(yt_dlp, ffmpeg, deno)
 
@@ -67,7 +65,7 @@ def tool_version(path: Path, name: str | None = None) -> str:
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=8,
+        timeout=30,
         encoding="utf-8",
         errors="replace",
         **subprocess_options(),

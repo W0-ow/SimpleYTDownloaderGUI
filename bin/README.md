@@ -1,22 +1,19 @@
-# Herramientas externas
+# Componentes de desarrollo y empaquetado
 
-Coloca aquí `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` y `deno.exe` de Windows x64.
-No se añaden binarios a Git. Se conservan separados del ejecutable de la GUI para actualizarlos.
+Los usuarios Windows no necesitan copiar archivos aquí: la aplicación prepara y actualiza
+sus componentes en `%LOCALAPPDATA%\SuperYTDownloader\tools`.
 
-Preparación automática desde la raíz, con Python instalado:
+Para exportar herramientas Windows al construir un portable con componentes incluidos:
 
 ```powershell
-python scripts/setup_tools.py
+python scripts/setup_tools.py --destination bin
 ```
 
-El script descarga versiones actuales, verifica SHA256 y conserva procedencia y licencias.
-Cierra la aplicación antes de actualizar. También puedes elegir rutas en Ajustes.
+Descarga las últimas publicaciones estables, verifica SHA256 y guarda las licencias y el
+manifiesto de versiones. El empaquetado habitual no necesita esta carpeta; `-DownloadTools`
+la incluye como alternativa para usar el programa aunque falle la comprobación inicial.
 
-Descarga manual:
+Para pruebas locales en macOS: `python scripts/setup_dev_macos.py`. Prepara ejecutables nativos
+sin `.exe`, manteniendo los de Windows separados. No es un instalador ni una distribución Mac.
 
-- yt-dlp: https://github.com/yt-dlp/yt-dlp/releases
-- FFmpeg y FFprobe: https://www.gyan.dev/ffmpeg/builds/ (release essentials ZIP)
-- Deno: https://github.com/denoland/deno/releases (x86_64-pc-windows-msvc ZIP)
-
-Conserva las licencias que acompañan a las herramientas al distribuirlas.
-Para desarrollar en macOS/Linux usa sus ejecutables nativos sin `.exe`, en esta carpeta o PATH.
+Los binarios no se añaden a Git. Conserva sus licencias al compartir paquetes que los incluyan.

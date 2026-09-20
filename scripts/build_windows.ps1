@@ -15,11 +15,8 @@ try {
     & $PythonExe -m pip install -e '.[dev]'
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las dependencias.' }
     if ($DownloadTools) {
-        & $PythonExe scripts/setup_tools.py
+        & $PythonExe scripts/setup_tools.py --destination bin
         if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación de herramientas.' }
-    }
-    foreach ($Tool in @('yt-dlp.exe', 'ffmpeg.exe', 'ffprobe.exe', 'deno.exe')) {
-        if (-not (Test-Path "bin\$Tool")) { throw "Falta bin\$Tool. Usa -DownloadTools o copia las herramientas en bin/." }
     }
     & $PythonExe -m ruff check .
     if ($LASTEXITCODE -ne 0) { throw 'Falló la comprobación de código.' }
@@ -32,7 +29,13 @@ try {
         --name SuperYTDownloader --paths src --collect-data superyt `
         --icon build/app.ico SuperYT.py
     if ($LASTEXITCODE -ne 0) { throw 'Falló el empaquetado.' }
-    Copy-Item bin 'dist\SuperYTDownloader\bin' -Recurse -Force
+    if ($DownloadTools) {
+        New-Item -ItemType Directory -Path 'dist\SuperYTDownloader\bin' -Force | Out-Null
+        foreach ($Tool in @('yt-dlp.exe', 'ffmpeg.exe', 'ffprobe.exe', 'deno.exe', 'tools-manifest.json')) {
+            Copy-Item "bin\$Tool" 'dist\SuperYTDownloader\bin' -Force
+        }
+        Copy-Item 'bin\licenses' 'dist\SuperYTDownloader\bin\licenses' -Recurse -Force
+    }
     Copy-Item README.md 'dist\SuperYTDownloader\LEEME.md' -Force
     Copy-Item THIRD_PARTY.md 'dist\SuperYTDownloader\THIRD_PARTY.md' -Force
     & $PythonExe -m pip freeze | Out-File 'dist\SuperYTDownloader\build-dependencies.txt' -Encoding utf8

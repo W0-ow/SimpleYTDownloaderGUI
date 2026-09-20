@@ -1,10 +1,10 @@
 import threading
-from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
 from superyt.downloader import Cancelled, download_one, inspect_video
-from superyt.tools import executable_name, resolve_tool, tool_version
+from superyt.releases import UpdateCancelled
+from superyt.updater import update_windows
 
 
 class DownloadWorker(QThread):
@@ -49,29 +49,22 @@ class InspectWorker(QThread):
         self.cancel_event.set()
 
 
-class ToolWorker(QThread):
-    result = Signal(str, str)
+class UpdateWorker(QThread):
+    progress = Signal(str)
+    result = Signal(bool)
+    error = Signal(str)
 
-    def __init__(self, overrides, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.overrides = dict(overrides)
+        self.cancel_event = threading.Event()
 
     def run(self):
-        for name in ("yt-dlp", "ffmpeg", "ffprobe", "deno"):
-            if self.isInterruptionRequested():
-                return
-            if name == "ffprobe":
-                ffmpeg = resolve_tool("ffmpeg", self.overrides)
-                path = ffmpeg.with_name(executable_name(name)) if ffmpeg else None
-            else:
-                path = resolve_tool(name, self.overrides)
-            try:
-                version = (
-                    tool_version(Path(path), name) if path and path.is_file() else "No encontrado"
-                )
-                self.result.emit(
-                    name,
-                    f"{version}\n{path or 'Coloca el ejecutable en bin/ o configura su ruta.'}",
-                )
-            except Exception as exc:
-                self.result.emit(name, f"No se pudo ejecutar: {exc}")
+        try:
+            self.result.emit(update_windows(self.cancel_event, self.progress.emit))
+        except UpdateCancelled:
+            self.error.emit("Preparación cancelada. Se conserva la versión anterior.")
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def cancel(self):
+        self.cancel_event.set()

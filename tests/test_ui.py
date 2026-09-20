@@ -83,3 +83,108 @@ def test_full_queue_continues_after_failed_item(app, window, tmp_path, monkeypat
     assert [i.status for i in window.items] == ["Error", "Completado"]
     assert window.retry_button.isEnabled()
     assert window.table.cellWidget(1, 3).value() == 100
+
+
+@pytest.fixture
+def update_ui(window, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtCore import QObject, Signal
+
+    class ControlledUpdateWorker(QObject):
+        progress = Signal(str)
+        result = Signal(bool)
+        error = Signal(str)
+        finished = Signal()
+
+        def __init__(self, parent):
+            super().__init__(parent)
+            import threading
+
+            self.cancel_event = threading.Event()
+
+        def start(self):
+            self.progress.emit("Buscando actualizaciones…")
+
+        def cancel(self):
+            self.cancel_event.set()
+
+    monkeypatch.setattr("superyt.ui.main_window.sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr("superyt.ui.main_window.UpdateWorker", ControlledUpdateWorker)
+    yield window
+    if window.updater is not None:
+        window.updater.finished.emit()
+    window.worker = None
+    window.probe = None
+
+
+def test_update_disables_media_actions_but_keeps_queue_editing_available(update_ui):
+    window = update_ui
+    window.add_links(["youtu.be/one"])
+    window.request_update()
+    assert window.updater is not None
+    assert not window.download_button.isEnabled()
+    assert not window.update_button.isEnabled()
+    window.add_links(["youtu.be/two"])
+    assert len(window.items) == 2
+    window.updater.result.emit(True)
+    window.updater.finished.emit()
+    assert window.updater is None
+    assert window.download_button.isEnabled()
+    assert window.update_button.isEnabled()
+
+
+def test_update_is_deferred_until_download_ends(update_ui, app):
+    from PySide6.QtCore import QObject
+
+    window = update_ui
+    window.worker = QObject(window)
+    window.request_update()
+    assert window.update_pending
+    assert window.updater is None
+    window.downloads_finished()
+    app.processEvents()
+    assert window.updater is not None
+    assert not window.update_pending
+
+
+def test_missing_components_trigger_preparation_then_resume_requested_download(
+    update_ui, monkeypatch, app
+):
+    window = update_ui
+    window.add_links(["youtu.be/one"])
+
+    def missing(**kwargs):
+        raise ValueError("missing")
+
+    monkeypatch.setattr("superyt.ui.main_window.resolve_tools", missing)
+    window.start_downloads()
+    assert window.updater is not None
+    assert window.start_after_update
+    resumed = []
+    monkeypatch.setattr(window, "start_downloads", lambda: resumed.append(True))
+    window.updater.result.emit(True)
+    window.updater.finished.emit()
+    app.processEvents()
+    assert resumed == [True]
+
+
+def test_failed_update_keeps_download_action_usable(update_ui, monkeypatch):
+    window = update_ui
+    window.add_links(["youtu.be/one"])
+    monkeypatch.setattr("superyt.ui.main_window.resolve_tools", lambda: object())
+    window.request_update()
+    window.updater.error.emit("offline")
+    window.updater.finished.emit()
+    assert "versión instalada" in window.notice.text()
+    assert window.download_button.isEnabled()
+
+
+def test_startup_respects_daily_check(update_ui, monkeypatch):
+    window = update_ui
+    monkeypatch.setattr("superyt.ui.main_window.update_due", lambda: False)
+    window.startup_update()
+    assert window.updater is None
+    monkeypatch.setattr("superyt.ui.main_window.update_due", lambda: True)
+    window.startup_update()
+    assert window.updater is not None

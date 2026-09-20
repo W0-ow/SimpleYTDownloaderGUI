@@ -29,7 +29,6 @@ class Settings:
     height: int | None = 1080
     compatible: bool = True
     bitrate: int = 192
-    tools: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
@@ -50,12 +49,7 @@ class Settings:
             settings.compatible = raw["compatible"]
         if raw.get("bitrate") in (128, 192, 256, 320):
             settings.bitrate = raw["bitrate"]
-        if isinstance(raw.get("tools"), dict):
-            settings.tools = {
-                k: v
-                for k, v in raw["tools"].items()
-                if k in ("yt-dlp", "ffmpeg", "deno") and isinstance(v, str)
-            }
+        # Old manual tool paths are intentionally ignored during migration.
         return settings
 
     def save(self, path: Path | None = None) -> None:
