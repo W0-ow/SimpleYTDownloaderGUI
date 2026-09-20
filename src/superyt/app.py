@@ -5,6 +5,7 @@ from logging.handlers import RotatingFileHandler
 from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from . import __version__
 from .settings import Settings, data_dir
 from .ui.main_window import MainWindow
 from .ui.theme import STYLE
@@ -14,6 +15,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("SuperYTDownloader")
     app.setOrganizationName("SuperYTDownloader")
+    app.setApplicationVersion(__version__)
     app.setStyle("Fusion")
     app.setStyleSheet(STYLE)
     try:

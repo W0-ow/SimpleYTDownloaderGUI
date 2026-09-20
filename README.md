@@ -4,6 +4,10 @@ Aplicación en español para descargar vídeos de YouTube o guardar solo audio.
 **Distribución para Windows 10/11 x64.** La aplicación prepara y actualiza sus componentes
 sin elegir motores, instalar Python ni configurar rutas.
 
+## Primera versión para Windows
+
+Descarga el ZIP portable y el archivo SHA256 desde [Releases](https://github.com/W0-ow/SimpleYTDownloaderGUI/releases/latest). Comprueba que el hash coincida, descomprime toda la carpeta y abre `SuperYTDownloader.exe`. No necesitas Python. El primer inicio requiere Internet para preparar los componentes.
+
 ## Uso en Windows
 
 Descomprime toda la carpeta portable y abre `SuperYTDownloader.exe`.
@@ -80,9 +84,9 @@ Resultados:
 Opcionalmente, `-DownloadTools` incorpora una copia de las herramientas al portable,
 para poder utilizar esa copia aunque falle la comprobación inicial. El actualizador sigue funcionando.
 
-GitHub Actions ejecuta pruebas en Windows en push/PR. El flujo manual
-**Windows checks and portable build**, con `bundle_tools`, genera un ZIP con componentes
-como artefacto descargable. No publica releases.
+GitHub Actions ejecuta las pruebas y comprueba la construcción en Windows. Ejecuta manualmente
+el flujo **Windows x64** para obtener un artefacto de prueba. Al publicar un tag `v*.*.*`,
+la acción genera el portable, su SHA256 y la GitHub Release correspondiente.
 
 ## Ejecutar desde el código
 

@@ -40,6 +40,8 @@ try {
     Copy-Item THIRD_PARTY.md 'dist\SuperYTDownloader\THIRD_PARTY.md' -Force
     & $PythonExe -m pip freeze | Out-File 'dist\SuperYTDownloader\build-dependencies.txt' -Encoding utf8
     Compress-Archive -Path 'dist\SuperYTDownloader\*' -DestinationPath 'dist\SuperYTDownloader-windows-x64.zip' -Force
+    $Hash = (Get-FileHash 'dist\SuperYTDownloader-windows-x64.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$Hash  SuperYTDownloader-windows-x64.zip" | Out-File 'dist\SHA256SUMS.txt' -Encoding ascii
     Write-Host 'Paquete listo: dist\SuperYTDownloader-windows-x64.zip'
 } finally {
     if ($null -eq $PreviousQtPlatform) {
