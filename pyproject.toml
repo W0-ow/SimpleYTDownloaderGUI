@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "superyt-downloader"
-version = "1.0.0"
+version = "1.1.0"
 description = "Interfaz de escritorio para yt-dlp, orientada a Windows"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,7 +20,7 @@ superyt = "superyt.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-superyt = ["assets/*.svg"]
+superyt = ["assets/*.svg", "assets/*.ps1"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -28,12 +28,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from superyt import __version__
+from superyt.app_update import AppRelease, can_install, launch_installer
 from superyt.formats import normalize_url, progress_detail
 from superyt.models import DownloadItem, DownloadOptions
 from superyt.settings import Settings
 from superyt.tools import resolve_tools
 from superyt.ui.dialogs import PasteDialog, show_formats
-from superyt.ui.workers import DownloadWorker, InspectWorker, UpdateWorker
+from superyt.ui.workers import AppUpdateWorker, DownloadWorker, InspectWorker, UpdateWorker
 from superyt.updater import update_due
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,9 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.probe = None
         self.updater = None
+        self.app_updater = None
+        self.check_application_after_tools = False
+        self.component_update_summary = ""
         self.update_pending = False
         self.start_after_update = False
         self.update_succeeded = False
@@ -82,9 +87,8 @@ class MainWindow(QMainWindow):
         titles.addWidget(title)
         titles.addWidget(subtitle)
         header.addLayout(titles, 1)
-        self.update_button = self.button("Buscar actualizaciones", self.request_update)
-        self.update_button.setVisible(sys.platform == "win32")
-        header.addWidget(self.update_button)
+        self.update_button = self.button("Buscar actualizaciones", self.request_all_updates)
+        self.update_button.setVisible(sys.platform in ("win32", "darwin"))
         layout.addLayout(header)
 
         card = QFrame()
@@ -138,6 +142,7 @@ class MainWindow(QMainWindow):
             options.addWidget(QLabel(label), 0, col)
             options.addWidget(widget, 1, col)
         form.addLayout(options)
+        form.addWidget(QLabel("Las opciones se guardan en cada enlace al añadirlo a la cola."))
         self.mode.currentIndexChanged.connect(self.update_mode)
         self.destination = QLineEdit()
         self.destination.setAccessibleName("Carpeta de destino")
@@ -154,6 +159,10 @@ class MainWindow(QMainWindow):
         self.queue_label.setObjectName("section")
         queue_header.addWidget(self.queue_label, 1)
         self.inspect_button = self.button("Ver formatos", self.inspect_selected)
+        self.apply_options_button = self.button(
+            "Aplicar opciones a seleccionados", self.apply_options_to_selected
+        )
+        queue_header.addWidget(self.apply_options_button)
         queue_header.addWidget(self.inspect_button)
         layout.addLayout(queue_header)
         self.table = QTableWidget(0, 4)
@@ -200,6 +209,12 @@ class MainWindow(QMainWindow):
         self.log.hide()
         self.details_toggle.toggled.connect(self.log.setVisible)
         layout.addWidget(self.log)
+        footer = QHBoxLayout()
+        suffix = " · Pruebas Mac" if sys.platform == "darwin" else ""
+        footer.addWidget(QLabel(f"Versión {__version__}{suffix}"))
+        footer.addStretch()
+        footer.addWidget(self.update_button)
+        layout.addLayout(footer)
 
     def load_settings(self):
         self.destination.setText(self.settings.destination)
@@ -240,12 +255,87 @@ class MainWindow(QMainWindow):
                 else "Faltan componentes para las pruebas locales."
             )
 
+    def request_all_updates(self):
+        if self.closing or self.updater is not None or self.app_updater is not None:
+            return
+        self.check_application_after_tools = True
+        self.request_update()
+
+    def check_app_update(self, info=None):
+        if self.closing or self.app_updater is not None:
+            return
+        if self.worker is not None or self.probe is not None or self.updater is not None:
+            self.notice.setText("Espera a que termine la tarea para actualizar la aplicación.")
+            return
+        self.app_update_value = None
+        self.app_update_error = None
+        self.app_updater = AppUpdateWorker(info, self)
+        self.app_updater.result.connect(self.app_update_result)
+        self.app_updater.error.connect(self.app_update_failed)
+        self.app_updater.progress.connect(self.notice.setText)
+        self.app_updater.finished.connect(self.app_update_finished)
+        self.notice.setText("Descargando actualización…" if info else "Buscando nueva versión…")
+        self.centralWidget().setEnabled(False)
+        self.app_updater.start()
+
+    def app_update_result(self, value):
+        self.app_update_value = value
+
+    def app_update_failed(self, message):
+        self.app_update_error = message
+
+    def app_update_finished(self):
+        self.app_updater.deleteLater()
+        self.app_updater = None
+        self.centralWidget().setEnabled(True)
+        if self.closing:
+            self.close()
+            return
+        if self.app_update_error:
+            self.notice.setText(self.component_update_summary +
+                                " No se pudo comprobar o actualizar la aplicación.")
+            self.append_log(self.app_update_error)
+            QMessageBox.warning(self, "Actualizaciones", self.app_update_error)
+            return
+        value = self.app_update_value
+        if isinstance(value, AppRelease):
+            if not can_install():
+                QMessageBox.information(
+                    self, "Nueva versión disponible",
+                    f"Disponible: {value.version}.\n\n{value.notes[:3000]}\n\n"
+                    "La instalación automática está disponible en la app instalada de Windows. "
+                    "Esta versión de pruebas/portable solo comprueba las publicaciones.")
+                self.notice.setText(f"Nueva versión disponible: {value.version}.")
+                return
+            dialog = QMessageBox(self)
+            dialog.setWindowTitle("Nueva versión disponible")
+            dialog.setTextFormat(Qt.TextFormat.PlainText)
+            dialog.setText(f"Versión {value.version}\n\n{value.notes[:3000]}\n\n"
+                           "Se reiniciará la aplicación. La cola de enlaces no se conserva.")
+            install = dialog.addButton("Actualizar y reiniciar", QMessageBox.ButtonRole.AcceptRole)
+            dialog.addButton("Ahora no", QMessageBox.ButtonRole.RejectRole)
+            dialog.exec()
+            if dialog.clickedButton() == install:
+                self.check_app_update(value)
+        elif isinstance(value, Path):
+            try:
+                self.save_settings()
+                launch_installer(value)
+            except Exception as exc:
+                QMessageBox.warning(self, "No se pudo iniciar la actualización", str(exc))
+                return
+            self.close()
+        else:
+            self.notice.setText(self.component_update_summary +
+                                f" Aplicación al día (versión {__version__}).")
+
     def startup_update(self):
-        if sys.platform == "win32" and update_due():
+        if self.app_updater is None and sys.platform == "win32" and update_due():
             self.request_update()
 
     def request_update(self):
-        if self.closing or self.updater is not None or sys.platform != "win32":
+        if (self.closing or self.updater is not None or self.app_updater is not None
+                or sys.platform not in ("win32", "darwin")):
             return
         if self.worker is not None or self.probe is not None:
             self.update_pending = True
@@ -258,6 +348,7 @@ class MainWindow(QMainWindow):
         self.update_button.setText("Actualizando…")
         self.updater = UpdateWorker(self)
         self.updater.progress.connect(self.notice.setText)
+        self.updater.progress.connect(self.append_log)
         self.updater.result.connect(self.update_result)
         self.updater.error.connect(self.update_error)
         self.updater.finished.connect(self.update_finished)
@@ -268,10 +359,15 @@ class MainWindow(QMainWindow):
     def update_result(self, changed):
         self.update_succeeded = True
         self.notice.setText(
-            "Actualización completada. Listo para descargar."
+            "Componentes actualizados. Listo para descargar."
             if changed
-            else "Todo está actualizado. Listo para descargar."
+            else "Componentes comprobados. Listo para descargar."
         )
+
+        if sys.platform == "darwin":
+            self.notice.setText(
+                "yt-dlp y Deno actualizados. FFmpeg/FFprobe se gestionan con Homebrew; "
+                "consulta Mostrar detalles de la sesión para ver las versiones.")
 
     def update_error(self, message):
         self.append_log(message)
@@ -287,6 +383,11 @@ class MainWindow(QMainWindow):
             )
 
     def update_finished(self):
+        check_application = (
+            self.check_application_after_tools and not self.updater.cancel_event.is_set()
+        )
+        self.check_application_after_tools = False
+        self.component_update_summary = self.notice.text()
         self.updater.deleteLater()
         self.updater = None
         self.update_button.setText("Buscar actualizaciones")
@@ -295,6 +396,8 @@ class MainWindow(QMainWindow):
         self.update_controls()
         if self.closing:
             QTimer.singleShot(0, self.close)
+        elif check_application:
+            self.check_app_update()
         elif resume:
             QTimer.singleShot(0, self.start_downloads)
 
@@ -314,6 +417,12 @@ class MainWindow(QMainWindow):
         )
         self.remove_button.setEnabled(not busy and selected)
         self.inspect_button.setEnabled(not busy and selected)
+        self.apply_options_button.setEnabled(
+            not busy and selected and all(
+                self.items[index.row()].status in ("Pendiente", "Error", "Cancelado")
+                for index in self.table.selectionModel().selectedRows()
+            )
+        )
         for widget in (self.mode, self.destination, self.browse_button):
             widget.setEnabled(not busy)
         self.update_button.setEnabled(
@@ -326,7 +435,53 @@ class MainWindow(QMainWindow):
         if self.add_links([self.url.text()]):
             self.url.clear()
 
+    def selected_options(self):
+        if not self.destination.text().strip():
+            raise ValueError("Selecciona una carpeta de destino.")
+        return DownloadOptions(
+            Path(self.destination.text()).expanduser().resolve(),
+            self.mode.currentData(), self.height.currentData(),
+            self.profile.currentData(), self.bitrate.currentData(),
+        )
+
+    def options_label(self, options):
+        if options.mode == "original":
+            return "Audio original"
+        if options.mode == "mp3":
+            return f"MP3 · {options.bitrate} kbps"
+        quality = f"≤ {options.height}p" if options.height else "Mejor disponible"
+        profile = "MP4 H.264" if options.compatible else "Máxima calidad"
+        return f"Vídeo · {quality} · {profile}"
+
+    def refresh_options(self, row):
+        options = self.items[row].options
+        label = self.options_label(options)
+        self.table.item(row, 1).setText(label)
+        self.table.item(row, 1).setToolTip(f"{label}\n{options.destination}")
+
+    def apply_options_to_selected(self):
+        if self.worker is not None or self.probe is not None or self.updater is not None:
+            return
+        rows = [index.row() for index in self.table.selectionModel().selectedRows()]
+        if not rows or any(self.items[row].status not in ("Pendiente", "Error", "Cancelado")
+                           for row in rows):
+            return
+        try:
+            options = self.selected_options()
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Revisa las opciones", str(exc))
+            return
+        for row in rows:
+            self.items[row].options = options
+            self.refresh_options(row)
+        self.notice.setText(f"Opciones aplicadas a {len(rows)} enlace(s).")
+
     def add_links(self, links):
+        try:
+            options = self.selected_options()
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Revisa las opciones", str(exc))
+            return 0
         known = {item.url for item in self.items}
         added = 0
         rejected = []
@@ -342,7 +497,7 @@ class MainWindow(QMainWindow):
             if url in known:
                 duplicates += 1
                 continue
-            item = DownloadItem(url)
+            item = DownloadItem(url, options=options)
             self.items.append(item)
             known.add(url)
             self.add_row(item)
@@ -363,10 +518,11 @@ class MainWindow(QMainWindow):
     def add_row(self, item):
         row = self.table.rowCount()
         self.table.insertRow(row)
-        for column, text in enumerate((item.url, "Al iniciar", item.status)):
+        for column, text in enumerate((item.url, self.options_label(item.options), item.status)):
             cell = QTableWidgetItem(text)
             cell.setToolTip(text)
             self.table.setItem(row, column, cell)
+        self.refresh_options(row)
         progress = QProgressBar()
         progress.setValue(0)
         self.table.setCellWidget(row, 3, progress)
@@ -405,7 +561,7 @@ class MainWindow(QMainWindow):
         if not pending:
             return
         try:
-            tools = resolve_tools(needs_ffmpeg=self.mode.currentData() != "original")
+            tools = resolve_tools(needs_ffmpeg=any(item.options.mode != "original" for item in pending))
         except ValueError as exc:
             if sys.platform == "win32":
                 self.start_after_update = True
@@ -414,37 +570,15 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Preparación local", str(exc))
             return
         try:
-            if not self.destination.text().strip():
-                raise ValueError("Selecciona una carpeta de destino.")
-            destination = Path(self.destination.text()).expanduser().resolve()
-            destination.mkdir(parents=True, exist_ok=True)
-            with TemporaryFile(dir=destination):
-                pass
-            options = DownloadOptions(
-                destination,
-                self.mode.currentData(),
-                self.height.currentData(),
-                self.profile.currentData(),
-                self.bitrate.currentData(),
-            )
+            for destination in {item.options.destination for item in pending}:
+                destination.mkdir(parents=True, exist_ok=True)
+                with TemporaryFile(dir=destination):
+                    pass
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, "No se puede iniciar", str(exc))
             return
         self.save_settings()
-        label = (
-            (f"≤ {options.height}p" if options.height else "Mejor disponible")
-            if options.mode == "video"
-            else self.mode.currentText()
-        )
-        if options.mode == "mp3":
-            label += f" · {options.bitrate}k"
-        for item in pending:
-            row = self.items.index(item)
-            self.table.item(row, 1).setText(label)
-            self.table.item(row, 1).setToolTip(
-                f"{label}\n{self.profile.currentText() if options.mode == 'video' else ''}\n{destination}"
-            )
-        self.worker = DownloadWorker(pending, options, tools, self)
+        self.worker = DownloadWorker(pending, tools, self)
         self.worker.event.connect(self.on_event)
         self.worker.finished.connect(self.downloads_finished)
         self.worker.start()
@@ -542,7 +676,7 @@ class MainWindow(QMainWindow):
         try:
             tools = resolve_tools(needs_ffmpeg=False)
         except ValueError as exc:
-            if sys.platform == "win32":
+            if sys.platform in ("win32", "darwin"):
                 self.request_update()
             else:
                 QMessageBox.warning(self, "Preparación local", str(exc))
@@ -588,6 +722,11 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event):
+        if self.app_updater is not None:
+            self.closing = True
+            self.app_updater.cancel()
+            event.ignore()
+            return
         if self.updater is not None:
             self.closing = True
             self.cancel()

@@ -1,3 +1,4 @@
+import sys
 import threading
 
 from PySide6.QtCore import QThread, Signal
@@ -10,10 +11,9 @@ from superyt.updater import update_windows
 class DownloadWorker(QThread):
     event = Signal(object)
 
-    def __init__(self, items, options, tools, parent=None):
+    def __init__(self, items, tools, parent=None):
         super().__init__(parent)
         self.items = tuple(items)
-        self.options = options
         self.tools = tools
         self.cancel_event = threading.Event()
 
@@ -21,7 +21,7 @@ class DownloadWorker(QThread):
         for item in self.items:
             if self.cancel_event.is_set():
                 break
-            download_one(item, self.options, self.tools, self.cancel_event, self.event.emit)
+            download_one(item, item.options, self.tools, self.cancel_event, self.event.emit)
 
     def cancel(self):
         self.cancel_event.set()
@@ -60,9 +60,39 @@ class UpdateWorker(QThread):
 
     def run(self):
         try:
-            self.result.emit(update_windows(self.cancel_event, self.progress.emit))
+            if sys.platform == "darwin":
+                from superyt.mac_updater import update_macos
+
+                changed = update_macos(self.cancel_event, self.progress.emit)
+            else:
+                changed = update_windows(self.cancel_event, self.progress.emit)
+            self.result.emit(changed)
         except UpdateCancelled:
             self.error.emit("Preparación cancelada. Se conserva la versión anterior.")
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def cancel(self):
+        self.cancel_event.set()
+
+
+class AppUpdateWorker(QThread):
+    result = Signal(object)
+    error = Signal(str)
+    progress = Signal(str)
+
+    def __init__(self, info=None, parent=None):
+        super().__init__(parent)
+        self.info = info
+        self.cancel_event = threading.Event()
+
+    def run(self):
+        from superyt.app_update import check_release, fetch_installer
+
+        try:
+            value = (fetch_installer(self.info, self.cancel_event, self.progress.emit)
+                     if self.info else check_release(self.cancel_event))
+            self.result.emit(value)
         except Exception as exc:
             self.error.emit(str(exc))
 

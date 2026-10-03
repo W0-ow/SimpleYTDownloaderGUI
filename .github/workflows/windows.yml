@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   windows:
-    name: Test and build portable app
+    name: Test and build Windows installer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,22 +34,33 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q
-      - name: Build portable Windows package
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.bundle_tools)
-        run: ./scripts/build_windows.ps1 -DownloadTools
+      - name: Install Inno Setup
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        run: choco install innosetup --no-progress -y
+      - name: Build Windows installer and portable package
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          BUNDLE_TOOLS: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.bundle_tools }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/build_windows.ps1 -Installer -DownloadTools:($env:BUNDLE_TOOLS -eq 'true')
+      - name: Smoke test installation, replacement and startup
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        run: ./scripts/test_installer.ps1
       - name: Upload build for inspection
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.bundle_tools)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: SuperYTDownloader-windows-x64
           path: |
+            dist/SuperYTDownloader-Setup.exe
             dist/SuperYTDownloader-windows-x64.zip
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
 
   publish:
-    name: Publish GitHub release
+    name: Prepare draft GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: windows
     runs-on: ubuntu-latest
@@ -67,11 +78,12 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" \
+            gh release create "$RELEASE_TAG" --draft --verify-tag \
               --title "Super YT Downloader $RELEASE_TAG" \
               --notes-file CHANGELOG.md
           fi
           gh release upload "$RELEASE_TAG" \
+            dist/SuperYTDownloader-Setup.exe \
             dist/SuperYTDownloader-windows-x64.zip \
             dist/SHA256SUMS.txt \
             --clobber

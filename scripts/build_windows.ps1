@@ -1,4 +1,4 @@
-param([switch]$DownloadTools)
+param([switch]$DownloadTools, [switch]$Installer)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $PreviousQtPlatform = $env:QT_QPA_PLATFORM
@@ -42,6 +42,21 @@ try {
     Compress-Archive -Path 'dist\SuperYTDownloader\*' -DestinationPath 'dist\SuperYTDownloader-windows-x64.zip' -Force
     $Hash = (Get-FileHash 'dist\SuperYTDownloader-windows-x64.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
     "$Hash  SuperYTDownloader-windows-x64.zip" | Out-File 'dist\SHA256SUMS.txt' -Encoding ascii
+    if ($Installer) {
+        $Compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+        if (-not (Test-Path $Compiler)) {
+            throw 'Instala Inno Setup 6 para generar el instalador.'
+        }
+        $Version = & $PythonExe -c "from superyt import __version__; print(__version__)"
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo leer la versión.' }
+        if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$Version") {
+            throw 'El tag debe coincidir con la versión de la aplicación.'
+        }
+        & $Compiler "/DAppVersion=$Version" scripts/windows_installer.iss
+        if ($LASTEXITCODE -ne 0) { throw 'Falló la creación del instalador.' }
+        $SetupHash = (Get-FileHash 'dist\SuperYTDownloader-Setup.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$SetupHash  SuperYTDownloader-Setup.exe" | Out-File 'dist\SHA256SUMS.txt' -Encoding ascii -Append
+    }
     Write-Host 'Paquete listo: dist\SuperYTDownloader-windows-x64.zip'
 } finally {
     if ($null -eq $PreviousQtPlatform) {
