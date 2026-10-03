@@ -1,5 +1,28 @@
 # Super YT Downloader 1.1.0
 
+## Instalación en Windows
+
+Para **Windows 10/11 de 64 bits**:
+
+**Opción recomendada: instalador `.exe`**
+
+1. Despliega **Assets** de esta release y descarga exactamente **`SuperYTDownloader-Setup.exe`**. El `.exe` que lleva **Setup** en el nombre es el instalador.
+2. Haz doble clic en el archivo descargado y sigue los pasos del asistente. Crea accesos directos y un desinstalador. No necesitas Python ni permisos de administrador.
+3. Abre **Super YT Downloader** desde el acceso directo. En el primer inicio, espera a que termine **Preparando aplicación…**; necesita conexión a Internet.
+
+**Alternativa: ZIP portable, sin instalación**
+
+1. En **Assets**, descarga exactamente **`SuperYTDownloader-windows-x64.zip`**.
+2. Haz clic derecho sobre el ZIP y selecciona **Extraer todo…**.
+3. Abre la carpeta extraída y haz doble clic en **`SuperYTDownloader.exe`**.
+
+Conserva toda la carpeta, incluida `_internal/` junto al ejecutable. Ejecuta la aplicación desde la carpeta extraída.
+La actualización automática de la aplicación requiere la versión instalada.
+
+Los archivos **Source code (zip)** y **Source code (tar.gz)** contienen el código fuente; para usar la aplicación, descarga el instalador recomendado o el ZIP portable indicado arriba.
+
+## Novedades
+
 - Instalador para Windows x64 con accesos directos y desinstalador, sin Python ni permisos de administrador.
 - Un único botón para actualizar los componentes y comprobar nuevas versiones de la aplicación.
 - Descarga del instalador con verificación SHA256 y actualización con reinicio desde la interfaz.
