@@ -21,6 +21,9 @@ class DownloadItem:
     detail: str = ""
     progress: int = 0
     path: str = ""
+    options: DownloadOptions = field(
+        default_factory=lambda: DownloadOptions(Path.home() / "Downloads")
+    )
 
 
 @dataclass(frozen=True)

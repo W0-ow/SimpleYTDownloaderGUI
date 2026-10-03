@@ -6,25 +6,47 @@ sin elegir motores, instalar Python ni configurar rutas.
 
 ## Primera versión para Windows
 
-Descarga el ZIP portable y el archivo SHA256 desde [Releases](https://github.com/W0-ow/SimpleYTDownloaderGUI/releases/latest). Comprueba que el hash coincida, descomprime toda la carpeta y abre `SuperYTDownloader.exe`. No necesitas Python. El primer inicio requiere Internet para preparar los componentes.
+Descarga `SuperYTDownloader-Setup.exe` desde [Releases](https://github.com/W0-ow/SimpleYTDownloaderGUI/releases/latest)
+y ejecútalo. Instala la aplicación para tu usuario, crea accesos directos y añade un desinstalador.
+No necesitas Python ni permisos de administrador. Las releases incluyen los componentes de descarga.
+
+El ZIP portable sigue disponible como alternativa: descomprime toda la carpeta y conserva
+`_internal/` junto al ejecutable. La actualización automática de la aplicación requiere el instalador.
 
 ## Uso en Windows
 
-Descomprime toda la carpeta portable y abre `SuperYTDownloader.exe`.
-Conserva `_internal/` junto al ejecutable.
+Abre **Super YT Downloader** desde su acceso directo.
 
 1. La primera vez muestra **Preparando aplicación…** y descarga los componentes necesarios.
    Necesita Internet; puede tardar unos minutos.
-2. Añade un enlace o pega varios, uno por línea.
-3. Elige vídeo, audio original o MP3, calidad y carpeta de destino.
+2. Elige vídeo, audio original o MP3, calidad y carpeta de destino.
+3. Añade un enlace o pega varios, uno por línea; se guardarán con esas opciones.
 4. Pulsa **Descargar pendientes**.
 
 Las descargas se ejecutan de una en una. Puedes cancelarlas, reintentar fallidos/cancelados
 y quitar filas seleccionadas. Los enlaces añadidos durante una tanda quedan para la siguiente.
-Las opciones se aplican al iniciar cada tanda; reintentar utiliza los ajustes actuales.
+Cada enlace conserva el formato, calidad y carpeta elegidos al añadirlo. Reintentar conserva esas
+opciones. Para cambiarlas, selecciona filas pendientes/fallidas/canceladas, ajusta los controles y
+pulsa **Aplicar opciones a seleccionados**. Las filas completadas no se modifican.
 Doble clic abre un archivo completado o muestra el detalle de un error.
 
-## Actualizaciones automáticas
+## Un solo botón para actualizar todo
+
+En la parte inferior aparecen la versión y **Buscar actualizaciones**. Este único botón primero
+comprueba y actualiza los componentes y después consulta la última release estable de la aplicación,
+incluso si la actualización de componentes falla. Si hay una versión nueva ofrece
+**Actualizar y reiniciar**, con sus notas de versión. Cancelar detiene también la comprobación restante.
+Descarga y verifica SHA256 antes de cerrar la aplicación. Un proceso auxiliar espera al cierre,
+ejecuta el instalador sin asistente y vuelve a abrir el programa si la instalación termina correctamente.
+Las preferencias y los archivos descargados se conservan; la cola de enlaces no se conserva al reiniciar.
+Durante una descarga o consulta activa, la comprobación queda pendiente hasta que termine.
+Si falla la instalación, muestra el error y la ubicación del registro; no garantiza revertir una
+instalación parcialmente aplicada. Puedes volver a ejecutar el instalador de la release.
+
+En Mac de desarrollo y en el portable se pueden consultar las versiones, pero no instalarlas automáticamente.
+Sin una release publicada, GitHub devolverá un error de consulta; no se simula una actualización.
+
+## Actualizaciones de componentes
 
 - Al abrir, comprueba las últimas publicaciones estables de yt-dlp, FFmpeg/FFprobe y Deno.
   Una comprobación correcta se guarda durante 24 horas; no descarga todo en cada apertura.
@@ -36,7 +58,7 @@ Doble clic abre un archivo completado o muestra el detalle de un error.
   Puedes seguir usándola y reintentar la actualización después.
 - La interfaz sigue respondiendo durante la preparación. Puedes añadir enlaces y cancelar;
   las descargas esperan a que termine la actualización.
-- La actualización afecta a los componentes de descarga, no al código de la aplicación.
+- Las comprobaciones automáticas al abrir actualizan los componentes; el botón manual comprueba también la aplicación.
 
 Los componentes se guardan en `%LOCALAPPDATA%\SuperYTDownloader\tools`, con una copia
 anterior de respaldo. No necesita modificar la carpeta del programa ni permisos de administrador.
@@ -62,10 +84,10 @@ no se sobrescriben archivos terminados. La cola no se conserva al cerrar esta ve
 ## Construir el programa en Windows (desarrollo)
 
 Este paso es para crear el portable desde el código fuente. Necesita **Python 3.12 x64**
-con el lanzador `py`. Los usuarios del portable terminado no necesitan Python.
+con el lanzador `py` e **Inno Setup 6** en su ubicación estándar. Los usuarios del portable terminado no necesitan Python.
 
 ```powershell
-.\scripts\build_windows.ps1
+.\scripts\build_windows.ps1 -Installer -DownloadTools
 ```
 
 Si PowerShell bloquea los scripts:
@@ -78,6 +100,7 @@ El script crea el entorno, instala dependencias, ejecuta comprobaciones y empaqu
 Los componentes se descargarán automáticamente cuando el usuario abra el programa.
 Resultados:
 
+- `dist/SuperYTDownloader-Setup.exe` (con `-Installer`)
 - `dist/SuperYTDownloader/SuperYTDownloader.exe`
 - `dist/SuperYTDownloader-windows-x64.zip`
 
@@ -86,7 +109,9 @@ para poder utilizar esa copia aunque falle la comprobación inicial. El actualiz
 
 GitHub Actions ejecuta las pruebas y comprueba la construcción en Windows. Ejecuta manualmente
 el flujo **Windows x64** para obtener un artefacto de prueba. Al publicar un tag `v*.*.*`,
-la acción genera el portable, su SHA256 y la GitHub Release correspondiente.
+la acción genera el instalador, el portable, sus SHA256 y la GitHub Release correspondiente en borrador para revisión.
+El tag debe coincidir con `src/superyt/__init__.py` (por ejemplo, `v1.1.0`); mantén también
+la versión de `pyproject.toml` sincronizada.
 
 ## Ejecutar desde el código
 
@@ -118,7 +143,9 @@ python3 -m venv .venv
 El script descarga y verifica yt-dlp y Deno nativos en `bin/`, detectando Intel o Apple Silicon,
 y comprueba el FFmpeg local. Puedes repetirlo para actualizar esas dos herramientas de pruebas.
 No modifica los binarios Windows de la misma carpeta ni instala una aplicación Mac.
-El botón de actualización de Windows se oculta en este modo de desarrollo.
+En Mac, **Buscar actualizaciones** actualiza yt-dlp y Deno nativos y consulta la versión
+de FFmpeg en Homebrew. FFmpeg/FFprobe se actualizan con `brew upgrade ffmpeg`; las versiones
+se muestran en los detalles de la sesión. El mismo botón consulta después las releases de la aplicación.
 
 ## Pruebas y estructura
 

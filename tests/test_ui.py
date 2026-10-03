@@ -188,3 +188,122 @@ def test_startup_respects_daily_check(update_ui, monkeypatch):
     monkeypatch.setattr("superyt.ui.main_window.update_due", lambda: True)
     window.startup_update()
     assert window.updater is not None
+
+
+def test_app_update_waits_for_active_download(window):
+    window.worker = object()
+    window.check_app_update()
+    assert window.app_updater is None
+    assert 'Espera' in window.notice.text()
+    window.worker = None
+
+
+def test_app_update_button_visible_on_mac_too(window):
+    assert window.update_button.text() == 'Buscar actualizaciones'
+    assert not hasattr(window, "app_update_button")
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_single_button_checks_app_even_when_components_fail(update_ui, monkeypatch, failed):
+    window = update_ui
+    checked = []
+    monkeypatch.setattr(window, 'check_app_update', lambda: checked.append(True))
+    monkeypatch.setattr('superyt.ui.main_window.resolve_tools', lambda: object())
+    window.update_button.click()
+    assert window.updater is not None
+    if failed:
+        window.updater.error.emit('offline')
+    else:
+        window.updater.result.emit(False)
+    window.updater.finished.emit()
+    assert checked == [True]
+    assert bool(window.component_update_summary)
+    assert not window.check_application_after_tools
+
+
+def test_cancel_unified_update_does_not_check_app(update_ui, monkeypatch):
+    window = update_ui
+    checked = []
+    monkeypatch.setattr(window, 'check_app_update', lambda: checked.append(True))
+    window.request_all_updates()
+    window.cancel()
+    window.updater.finished.emit()
+    assert checked == []
+
+
+def test_queued_unified_update_checks_both_after_download(update_ui, monkeypatch, app):
+    from PySide6.QtCore import QObject
+
+    window = update_ui
+    checked = []
+    monkeypatch.setattr(window, 'check_app_update', lambda: checked.append(True))
+    window.worker = QObject(window)
+    window.request_all_updates()
+    assert window.update_pending
+    window.downloads_finished()
+    app.processEvents()
+    window.updater.result.emit(True)
+    window.updater.finished.emit()
+    assert checked == [True]
+
+
+def test_mixed_queue_uses_each_links_saved_options_and_preserves_retries(
+    window, app, monkeypatch, tmp_path
+):
+    from superyt.models import DownloadEvent
+
+    calls = []
+    needs_ffmpeg = []
+
+    def tools(**kwargs):
+        needs_ffmpeg.append(kwargs['needs_ffmpeg'])
+        return object()
+
+    def download(item, options, tools, cancel, emit):
+        calls.append((item.url, options))
+        emit(DownloadEvent(item.id, 'error', 'Retry test'))
+
+    monkeypatch.setattr('superyt.ui.main_window.resolve_tools', tools)
+    monkeypatch.setattr('superyt.ui.workers.download_one', download)
+    window.height.setCurrentIndex(window.height.findData(720))
+    window.add_links(['youtu.be/video'])
+    window.mode.setCurrentIndex(window.mode.findData('mp3'))
+    window.bitrate.setCurrentIndex(window.bitrate.findData(320))
+    window.destination.setText(str(tmp_path / 'audio'))
+    window.add_links(['youtu.be/audio'])
+    saved = [item.options for item in window.items]
+    assert '720p' in window.table.item(0, 1).text()
+    assert '320 kbps' in window.table.item(1, 1).text()
+    window.mode.setCurrentIndex(window.mode.findData('original'))
+    window.destination.setText(str(tmp_path / 'unused'))
+
+    def wait_for_downloads():
+        deadline = time.monotonic() + 5
+        while window.worker is not None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+        assert window.worker is None
+
+    window.start_downloads()
+    wait_for_downloads()
+    assert [options for _, options in calls] == saved
+    assert needs_ffmpeg == [True]
+    assert not (tmp_path / 'unused').exists()
+    window.retry_failed()
+    wait_for_downloads()
+    assert [options for _, options in calls] == saved + saved
+
+
+def test_explicit_options_change_only_selected_pending_rows(window):
+    window.add_links(['youtu.be/one', 'youtu.be/two'])
+    original = window.items[1].options
+    window.mode.setCurrentIndex(window.mode.findData('mp3'))
+    window.table.selectRow(0)
+    window.apply_options_to_selected()
+    assert window.items[0].options.mode == 'mp3'
+    assert window.items[1].options == original
+    assert 'MP3' in window.table.item(0, 1).text()
+    window.items[0].status = 'Completado'
+    window.mode.setCurrentIndex(window.mode.findData('original'))
+    window.apply_options_to_selected()
+    assert window.items[0].options.mode == 'mp3'
