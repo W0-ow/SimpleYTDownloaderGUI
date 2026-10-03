@@ -4,14 +4,32 @@ Aplicación en español para descargar vídeos de YouTube o guardar solo audio.
 **Distribución para Windows 10/11 x64.** La aplicación prepara y actualiza sus componentes
 sin elegir motores, instalar Python ni configurar rutas.
 
-## Primera versión para Windows
+## Instalación en Windows
 
-Descarga `SuperYTDownloader-Setup.exe` desde [Releases](https://github.com/W0-ow/SimpleYTDownloaderGUI/releases/latest)
-y ejecútalo. Instala la aplicación para tu usuario, crea accesos directos y añade un desinstalador.
+Para **Windows 10/11 de 64 bits**, elige una de estas opciones:
+
+### Opción recomendada: instalador `.exe`
+
+1. Abre [Releases](https://github.com/W0-ow/SimpleYTDownloaderGUI/releases/latest) y despliega **Assets** si los archivos no aparecen.
+2. Descarga exactamente **`SuperYTDownloader-Setup.exe`**. El `.exe` que lleva **Setup** en el nombre es el instalador.
+3. Haz doble clic en el archivo descargado y sigue los pasos del asistente.
+4. Abre **Super YT Downloader** desde el acceso directo creado por el instalador.
+
+Instala la aplicación para tu usuario, crea accesos directos y añade un desinstalador.
 No necesitas Python ni permisos de administrador. Las releases incluyen los componentes de descarga.
+En el primer inicio, espera a que termine **Preparando aplicación…**; necesita Internet.
 
-El ZIP portable sigue disponible como alternativa: descomprime toda la carpeta y conserva
-`_internal/` junto al ejecutable. La actualización automática de la aplicación requiere el instalador.
+### Alternativa: ZIP portable, sin instalación
+
+1. En **Assets**, descarga exactamente **`SuperYTDownloader-windows-x64.zip`**.
+2. Haz clic derecho sobre el ZIP y selecciona **Extraer todo…**.
+3. Abre la carpeta extraída y haz doble clic en **`SuperYTDownloader.exe`**.
+
+Conserva toda la carpeta, incluida `_internal/` junto al ejecutable. Ejecuta la aplicación
+desde la carpeta extraída. La actualización automática de la aplicación requiere el instalador.
+
+Los archivos **Source code (zip)** y **Source code (tar.gz)** contienen el código fuente.
+Para usar la aplicación, descarga el instalador recomendado o el ZIP portable indicado arriba.
 
 ## Uso en Windows
 
